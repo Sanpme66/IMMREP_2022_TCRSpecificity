@@ -79,8 +79,7 @@ def list_remove_instance(list1, itemToRemove):
     """ Remove itemToRemove from list1 if it exists.
         Removes all of its instances!
     """
-    new_list = [item for item in list1 if item != itemToRemove]
-    return new_list
+    return [item for item in list1 if item != itemToRemove]
 
 def df_drop_duplicates(df, subset=None, keep='first'):
     """
@@ -393,58 +392,53 @@ if test_task_1:
                 with open(paths_ep.epiname_list_train_filename, 'rb') as f:
                     epiname_list_train = pickle.load(f)
 
-            ######## </editor-fold>
+            print('### Testing model! Task 1')
+            # test file name and import
+            ep_test_df_orig = pd.read_csv(paths_ep.input_test_ep_filename_orig, sep='\t')
+            print(f'Test data size: {ep_test_df_orig.shape[0]} samples')
 
-            ######## --------------- test ------------- ######## <editor-fold>
+            # write orig test file to csv
+            ep_test_df = ep_test_df_orig.copy().rename(columns=rename_cols)
+            ep_test_df['epitope'] = 'unknown'
+            ep_test_df.to_csv(paths_ep.input_test_ep_filename_csv)
 
-            if test_task_1:
-                print('### Testing model! Task 1')
-                # test file name and import
-                ep_test_df_orig = pd.read_csv(paths_ep.input_test_ep_filename_orig, sep='\t')
-                print(f'Test data size: {ep_test_df_orig.shape[0]} samples')
+            # get prediction for test data
+            res = SETE.data_preprocess(paths_ep.input_test_ep_filename_csv, 3,
+                                       return_kmers=True, min_tcrs_amount=1)
+            x_test_no_pca, y_test, epiname_list_test, kmers_list_test = res
 
-                # write orig test file to csv
-                ep_test_df = ep_test_df_orig.copy().rename(columns=rename_cols)
-                ep_test_df['epitope'] = 'unknown'
-                ep_test_df.to_csv(paths_ep.input_test_ep_filename_csv)
+            x_test_no_pca_df = pd.DataFrame(x_test_no_pca, columns=kmers_list_test)
 
-                # get prediction for test data
-                res = SETE.data_preprocess(paths_ep.input_test_ep_filename_csv, 3,
-                                           return_kmers=True, min_tcrs_amount=1)
-                x_test_no_pca, y_test, epiname_list_test, kmers_list_test = res
+            # Add 0s column for each kmer that is in the train set but not in the test set
+            for kmer_train in kmers_list_train:
+                if kmer_train not in kmers_list_test:
+                    x_test_no_pca_df[kmer_train] = 0
 
-                x_test_no_pca_df = pd.DataFrame(x_test_no_pca, columns=kmers_list_test)
+            # Remove kmers that are not in the train set, and reorder columns to match training set order
+            x_test_no_pca_df__final = x_test_no_pca_df.loc[:, kmers_list_train]
+            assert x_test_no_pca_df__final.shape[1] == len(kmers_list_train)
 
-                # Add 0s column for each kmer that is in the train set but not in the test set
-                for kmer_train in kmers_list_train:
-                    if kmer_train not in kmers_list_test:
-                        x_test_no_pca_df[kmer_train] = 0
+            # apply PCA over test set
+            x_test = pca.transform(x_test_no_pca_df__final)
 
-                # Remove kmers that are not in the train set, and reorder columns to match training set order
-                x_test_no_pca_df__final = x_test_no_pca_df.loc[:, kmers_list_train]
-                assert x_test_no_pca_df__final.shape[1] == len(kmers_list_train)
+            # predict test set labels using the trained model
+            y_test_preds_2 = model.predict_proba(x_test)
 
-                # apply PCA over test set
-                x_test = pca.transform(x_test_no_pca_df__final)
+            if epiname_list_train[0] == epitope:
+                y_test_preds = y_test_preds_2[:, 0]
+            elif epiname_list_train[1] == epitope:
+                y_test_preds = y_test_preds_2[:, 1]
+            else:
+                raise Exception
 
-                # predict test set labels using the trained model
-                y_test_preds_2 = model.predict_proba(x_test)
+            ep_test_df_orig['preds'] = y_test_preds
 
-                if epiname_list_train[0] == epitope:
-                    y_test_preds = y_test_preds_2[:, 0]
-                elif epiname_list_train[1] == epitope:
-                    y_test_preds = y_test_preds_2[:, 1]
-                else:
-                    raise Exception
+            print(f'Got {ep_test_df.shape[0] - np.isnan(ep_test_df_orig["preds"]).sum()} non-NA predictions out of {ep_test_df.shape[0]}')
 
-                ep_test_df_orig['preds'] = y_test_preds
+            # save results to file
+            ep_test_df_orig.to_csv(paths_ep.epitope_test_res_filename, sep='\t')
 
-                print(f'Got {ep_test_df.shape[0] - np.isnan(ep_test_df_orig["preds"]).sum()} non-NA predictions out of {ep_test_df.shape[0]}')
-
-                # save results to file
-                ep_test_df_orig.to_csv(paths_ep.epitope_test_res_filename, sep='\t')
-
-            ######## </editor-fold>
+                    ######## </editor-fold>
 
         except Exception:
             print(f'@@@@@@@@@ Couldnt get model / test for epitope {epitope}')
@@ -502,7 +496,10 @@ if test_task_2:
         # train Gradient Boosting Classifier
         train_start_time = time.time()
         model.fit(x_train, y_train)
-        print(f'Task2 training time:', get_str_time_from_start(train_start_time, sec_or_minute='minute'))
+        print(
+            'Task2 training time:',
+            get_str_time_from_start(train_start_time, sec_or_minute='minute'),
+        )
 
         # save model to file
         with open(paths_t2.task2_model_path, 'wb') as f:
