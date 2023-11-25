@@ -78,8 +78,7 @@ def list_remove_instance(list1, itemToRemove):
     """ Remove itemToRemove from list1 if it exists.
         Removes all of its instances!
     """
-    new_list = [item for item in list1 if item != itemToRemove]
-    return new_list
+    return [item for item in list1 if item != itemToRemove]
 
 def df_drop_duplicates(df, subset=None, keep='first'):
     """
@@ -136,9 +135,8 @@ class Object(object):
     pass
 
 def write_string_to_txt_file(string, file_path):
-    text_file = open(file_path, "w")
-    text_file.write(string)
-    text_file.close()
+    with open(file_path, "w") as text_file:
+        text_file.write(string)
 
 def get_train_data(input_data_folder, drop_duplicates_within_ep=False,
                    duplicates_within_ep_cols=['TRB_CDR3', 'TRA_CDR3', 'TRAV', 'TRAJ', 'TRBV', 'TRBJ', 'epitope'],
@@ -270,9 +268,7 @@ def find_best_roc_auc_cutoff(y_true, y_predicted):
     fpr, tpr, threshold = roc_curve(y_true, y_predicted)
     calc = pd.DataFrame({'tpr-fpr': tpr - fpr, 'threshold': threshold})
     ind_measure_max = calc['tpr-fpr'].idxmax()
-    best_threshold = calc.loc[ind_measure_max, 'threshold']
-
-    return best_threshold
+    return calc.loc[ind_measure_max, 'threshold']
 
 def get_class_preds_sklearn_model(model, preds_proba, class_name, raise_exception=True):
     """
@@ -296,11 +292,10 @@ def get_class_preds_sklearn_model(model, preds_proba, class_name, raise_exceptio
 
     if class_ind is not None:
         return preds_proba[:, class_ind]
+    if raise_exception:
+        raise Exception('class_name was not found in the given model classes.')
     else:
-        if raise_exception:
-            raise Exception('class_name was not found in the given model classes.')
-        else:
-            return None
+        return None
 
 ######## </editor-fold>
 

@@ -74,8 +74,7 @@ def list_remove_instance(list1, itemToRemove):
     """ Remove itemToRemove from list1 if it exists.
         Removes all of its instances!
     """
-    new_list = [item for item in list1 if item != itemToRemove]
-    return new_list
+    return [item for item in list1 if item != itemToRemove]
 
 def df_drop_duplicates(df, subset=None, keep='first'):
     """
